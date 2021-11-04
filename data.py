@@ -2,6 +2,7 @@
 import os
 import numpy as np
 import pandas as pd
+from collections import Counter
 import torch
 from torch.utils.data import Dataset, DataLoader
 import PIL
@@ -9,10 +10,10 @@ import cv2
 
 
 
-def partition_data(file='data/data_labels.csv', ratios=[0.70, 0.20, 0.10], out_path='data/'):
+def partition_data(file='data/data_labels.csv', ratios=[0.70, 0.20, 0.10], out_path='data/', uniform=False):
     """
     Partition data into training, validation and test data. Saves partitioned data
-    to three .csv files with equally many samples from each class in each file.
+    to three .csv files.
     """
 
     # Define ratios for traning, validation and test
@@ -27,46 +28,57 @@ def partition_data(file='data/data_labels.csv', ratios=[0.70, 0.20, 0.10], out_p
     imgs = data[:,0]
     lbls = data[:,1]
 
-    # Find indices of each class
-    idxs0 = np.where(lbls=='0')
-    idxs1 = np.where(lbls=='1')
-    idxs2 = np.where(lbls=='2')
+    idxs_shuffle = np.random.permutation(len(lbls))
+    imgs = imgs[idxs_shuffle]
+    lbls = lbls[idxs_shuffle]
 
-    # Find number of samples for each class
-    N0 = len(idxs0[0])
-    N1 = len(idxs1[0])
-    N2 = len(idxs2[0])
-    N = min(N0, N1, N2)
+    # Print info
+    print('NUMBER OF SAMPLES')
+    samples_per_class(lbls)
+    print('')
 
-    # Divide data by classes
-    imgs0 = imgs[idxs0]
-    lbls0 = lbls[idxs0]
-    imgs1 = imgs[idxs1]
-    lbls1 = lbls[idxs1]
-    imgs2 = imgs[idxs2]
-    lbls2 = lbls[idxs2]
+    # If uniformly many classes (do not use all data however)
+    if uniform:
+        # Find indices of each class
+        idxs0 = np.where(lbls=='0')
+        idxs1 = np.where(lbls=='1')
+        idxs2 = np.where(lbls=='2')
 
-    # Shuffle order
-    idxs_shuffle0 = np.random.permutation(N0)
-    idxs_shuffle1 = np.random.permutation(N1)
-    idxs_shuffle2 = np.random.permutation(N2)
-    imgs0 = imgs0[idxs_shuffle0]
-    lbls0 = lbls0[idxs_shuffle0]
-    imgs1 = imgs1[idxs_shuffle1]
-    lbls1 = lbls1[idxs_shuffle1]
-    imgs2 = imgs2[idxs_shuffle2]
-    lbls2 = lbls2[idxs_shuffle2]
+        # Find number of samples for each class
+        N0 = len(idxs0[0])
+        N1 = len(idxs1[0])
+        N2 = len(idxs2[0])
+        N = min(N0, N1, N2)
 
-    # Take samples from each class
-    imgs = []
-    lbls = []
-    for n in range(N):
-        imgs.append(imgs0[n])
-        lbls.append(lbls0[n])
-        imgs.append(imgs1[n])
-        lbls.append(lbls1[n])
-        imgs.append(imgs2[n])
-        lbls.append(lbls2[n])
+        # Divide data by classes
+        imgs0 = imgs[idxs0]
+        lbls0 = lbls[idxs0]
+        imgs1 = imgs[idxs1]
+        lbls1 = lbls[idxs1]
+        imgs2 = imgs[idxs2]
+        lbls2 = lbls[idxs2]
+
+        # Shuffle order
+        idxs_shuffle0 = np.random.permutation(N0)
+        idxs_shuffle1 = np.random.permutation(N1)
+        idxs_shuffle2 = np.random.permutation(N2)
+        imgs0 = imgs0[idxs_shuffle0]
+        lbls0 = lbls0[idxs_shuffle0]
+        imgs1 = imgs1[idxs_shuffle1]
+        lbls1 = lbls1[idxs_shuffle1]
+        imgs2 = imgs2[idxs_shuffle2]
+        lbls2 = lbls2[idxs_shuffle2]
+
+        # Take samples from each class
+        imgs = []
+        lbls = []
+        for n in range(N):
+            imgs.append(imgs0[n])
+            lbls.append(lbls0[n])
+            imgs.append(imgs1[n])
+            lbls.append(lbls1[n])
+            imgs.append(imgs2[n])
+            lbls.append(lbls2[n])
 
     # Divide into training, validation and test data sets
     idxs_train = int(ratio_train*len(imgs))
@@ -85,10 +97,30 @@ def partition_data(file='data/data_labels.csv', ratios=[0.70, 0.20, 0.10], out_p
 
     # Print information
     print('PARTITIONED DATA')
-    print('  Training:   ' + str(int(100*ratios[0]))+'%, ' + str(len(lbls_train)) + ' samples')
-    print('  Validation: ' + str(int(100*ratios[1]))+'%, ' + str(len(lbls_validation)) + ' samples')
-    print('  Testing:    ' + str(int(100*ratios[2]))+'%, ' + str(len(lbls_test)) + ' samples')
+    print('  Training:    ' + str(int(100*ratios[0]))+'%, ' + str(len(lbls_train)) + ' samples')
+    samples_per_class(lbls_train)
+    print('')
+    print('  Validation:  ' + str(int(100*ratios[1]))+'%, ' + str(len(lbls_validation)) + ' samples')
+    samples_per_class(lbls_validation)
+    print('')
+    print('  Testing:     ' + str(int(100*ratios[2]))+'%, ' + str(len(lbls_test)) + ' samples')
+    samples_per_class(lbls_test)
+    print('')
+    print('  Total:       ' + str(len(lbls_train)+len(lbls_validation)+len(lbls_test)))
 
+
+def samples_per_class(lbls):
+    counter = Counter(lbls)
+    keys = counter.keys()
+    values = counter.values()
+    pairs = sorted(zip(keys, values))
+    sum = 0
+    output_format = '    Class {:<1}: {:>5}   {:>3}%'
+    for pair in pairs:
+        sum += pair[1]
+    for pair in pairs:
+        print(output_format.format(pair[0], pair[1], int(100*pair[1]/sum)))
+    print('    Total:   {:>5}'.format(sum))
 
 
 def default_image_loader(image_path):
