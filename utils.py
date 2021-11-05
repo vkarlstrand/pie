@@ -29,16 +29,12 @@ class SaveBestModel:
         self.weight_path = weight_path
 
     def run(self, model):
-        # Save best model only
         if self.epoch == 0:
-            # print(f'monitor value is: {self.monitor_value:.4f}')
             self.best = self.monitor_value
-            # Save every epoch
             save_dir = os.path.join(self.weight_path, 'best.pt')
             torch.save(model, save_dir)
             print('Saved model.')
         elif self.best < self.monitor_value:
-            # print(f'monitor value is: {self.monitor_value:.4f}')
             self.best = max(self.best, self.monitor_value)
             save_dir = os.path.join(self.weight_path, 'best.pt')
             torch.save(model, save_dir)

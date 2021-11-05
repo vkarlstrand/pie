@@ -55,7 +55,7 @@ class data_prefetcher():
             # else:
             self.next_input = self.next_input.float()
             # self.next_input = self.next_input.sub_(self.mean).div_(self.std)
-            
+
     def next(self):
         torch.cuda.current_stream().wait_stream(self.stream)
         input_ = self.next_input
@@ -78,11 +78,11 @@ def train(model, train_loader, device, loss_fn, optimizer, train_total, epoch):
         preds = model(images)
 
         # Compute loss
-        loss = loss_fn(preds, labels) 
+        loss = loss_fn(preds, labels)
         train_loss += loss.item()
-     
-        # Backward        
-        optimizer.zero_grad()                     
+
+        # Backward
+        optimizer.zero_grad()
         loss.backward()
 
         # Update weights
@@ -98,9 +98,9 @@ def train(model, train_loader, device, loss_fn, optimizer, train_total, epoch):
         total += batch_size
     train_acc = train_acc / train_total
     train_loss = train_loss / len(train_loader)
-    
+
     return train_acc, train_loss
-    
+
 def valid(model, val_loader, device, loss_fn, optimizer, valid_total, epoch):
     valid_acc = 0.
     valid_loss = 0.
@@ -119,8 +119,44 @@ def valid(model, val_loader, device, loss_fn, optimizer, valid_total, epoch):
             _, pred_labels = torch.max(preds, 1)
             batch_correct = (pred_labels==labels).squeeze().sum().item()
             valid_acc += batch_correct
-            
+
     valid_acc = valid_acc / valid_total
     valid_loss = valid_loss / len(val_loader)
 
     return valid_acc, valid_loss
+
+def test(model, test_loader, device, loss_fn, optimizer, test_total, epoch):
+    test_acc = 0.
+    test_loss = 0.
+    model.eval()
+    wrong_images = []
+    wrong_labels = []
+    correct_labels = []
+    with torch.no_grad():
+        for i, (images, labels) in enumerate(test_loader):
+
+            images = images['image'].to(device)
+            labels = labels.to(device).long()
+
+            preds = model(images)
+
+            loss = loss_fn(preds, labels)
+            test_loss += loss.item()
+
+            _, pred_labels = torch.max(preds, 1)
+            batch_correct = (pred_labels==labels).squeeze().sum().item()
+            test_acc += batch_correct
+
+            wrong_idxs = np.where(pred_labels!=labels)
+            correct_label = labels[wrong_idxs]
+            wrong_label = pred_labels[wrong_idxs]
+            wrong_image = images[wrong_idxs[0],:,:,:].squeeze()
+            if wrong_label.numel():
+                wrong_labels.append(int(wrong_label[0]))
+                correct_labels.append(int(correct_label[0]))
+                wrong_images.append(wrong_image)
+
+    test_acc = test_acc / test_total
+    test_loss = test_loss / len(test_loader)
+
+    return test_acc, test_loss, wrong_images, wrong_labels, correct_labels
