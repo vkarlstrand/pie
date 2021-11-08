@@ -57,7 +57,7 @@ def plot_image_list(images, pred_labels, labels, rows, cols, image_width, mean, 
                 std_inv = torch.div(1, std)
                 album_inv = album.Compose([album.Normalize(mean=mean_inv, std=std_inv, max_pixel_value=1.0)])
                 img = album_inv(image=img)['image']
-                axs[row,col].set_title('Class '+str(lbl)+' > '+str(pred_lbl), fontsize=20)
+                axs[row,col].set_title(r'Class {} $\rightarrow$ {}'.format(lbl, pred_lbl), fontsize=20)
                 axs[row,col].imshow(img)
             axs[row,col].axis('off')
             if row*cols+col >= N-1:
