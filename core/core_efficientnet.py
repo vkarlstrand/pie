@@ -150,11 +150,13 @@ def test(model, test_loader, device, loss_fn, optimizer, test_total, epoch):
             wrong_idxs = np.where(pred_labels!=labels)
             correct_label = labels[wrong_idxs]
             wrong_label = pred_labels[wrong_idxs]
-            wrong_image = images[wrong_idxs[0],:,:,:].squeeze()
             if wrong_label.numel():
-                wrong_labels.append(int(wrong_label[0]))
-                correct_labels.append(int(correct_label[0]))
-                wrong_images.append(wrong_image)
+                num_wrongs = len(wrong_label)
+                for i in range(num_wrongs):
+                    wrong_image = images[wrong_idxs[0][i],:,:,:].squeeze()
+                    wrong_labels.append(int(wrong_label[i]))
+                    correct_labels.append(int(correct_label[i]))
+                    wrong_images.append(wrong_image)
 
     test_acc = test_acc / test_total
     test_loss = test_loss / len(test_loader)
