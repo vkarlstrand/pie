@@ -1,5 +1,8 @@
 import numpy as np
 import torch
+from torchvision.utils import save_image
+import os
+from plot import convert_image
 
 
 class Attack:
@@ -171,4 +174,35 @@ def evaluate_attacks(model, labels, attacked_images, attacked_labels, targeted_l
         print(out.format('Target accuracy:',
                          str(np.around(np.count_nonzero(attacked_labels==targeted_labels)*100/num_samples, 2))+str('%')))
 
+
+
+def save_images(images, attacked_images, gradients, labels, attacked_labels):
+    save_dir = './attacked_images'
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+    print('Saving images and attacked images to', save_dir)
+    csv_images = ''
+    csv_attacked_images = ''
+    csv_gradients = ''
+    for i, (img, att_img, grad, lbl, att_lbl) in enumerate(
+    zip(images, attacked_images, gradients, labels, attacked_labels)):
+        img = (img + 1)/2
+        att_img = (att_img + 1)/2
+        grad = (grad + 1)/2
+        img_str = str(i)+'_img.png'
+        att_str = str(i)+'_att.png'
+        grad_str = str(i)+'_grad.png'
+        save_image(img, save_dir+'/'+img_str)
+        save_image(att_img, save_dir+'/'+att_str)
+        save_image(grad, save_dir+'/'+grad_str)
+        csv_images += (img_str+','+str(lbl.item())+'\n')
+        csv_attacked_images += (att_str+','+str(att_lbl.item())+'\n')
+        csv_gradients += (grad_str+','+str(att_lbl.item())+'\n')
+    with open(save_dir+'/'+'original_images.csv', 'w') as file:
+        file.write(csv_images[0:-1])
+    with open(save_dir+'/'+'attacked_images.csv', 'w') as file:
+        file.write(csv_attacked_images[0:-1])
+    with open(save_dir+'/'+'gradients.csv', 'w') as file:
+        file.write(csv_gradients[0:-1])
+    print('Done.')
 
