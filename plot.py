@@ -1,4 +1,5 @@
 # Imports
+import numpy as np
 import matplotlib.pyplot as plt
 import torch
 from data import dataloader_to_lists
@@ -18,6 +19,18 @@ def plot_dataloader(dataloader, rows, cols, width):
 
 
 
+def convert_image(image):
+    """
+    Helper function to rescale image values to the range [0,1] again.
+    """
+    # Rearange order of dimensions so that the color components are last
+    image = image.permute(1,2,0).numpy()
+    # Rescale image values from range [-1,1] to range [0,1]
+    image = (image + 1)/2
+    return image
+
+
+
 def plot_images(images, labels, rows, cols, width,
                 predicted_labels=None, targeted_labels=None):
     """
@@ -25,54 +38,69 @@ def plot_images(images, labels, rows, cols, width,
     """
     # Initialize figure and axes
     fig, axs = plt.subplots(rows, cols, figsize=(cols*width, rows*width))
-    # Iterate over rows and columns
+    # Setup
     num_samples = len(labels)
+    print_img = True
     # Iterate over rows and columns
     for row in range(rows):
         for col in range(cols):
             # Get current index in list
             idx = row*cols+col
-            # Extract image and label
-            img = images[idx]
-            lbl = labels[idx]
-            # Change order of dimensions and convert to numpy array
-            img = img.permute(1,2,0).numpy()
-            # Rescale the image values to range [0,1]
-            img = (img + 1)/2
-            # Print image and corresponding label
-            axs[row,col].imshow(img)
-            axs[row,col].set_title(r'Class {}'.format(lbl), fontsize=20)
+            if print_img:
+                # Extract image and label
+                img = images[idx]
+                lbl = labels[idx]
+                # Convert image to correct range
+                img = convert_image(img)
+                # Print image and corresponding label
+                axs[row,col].imshow(img)
+                if predicted_labels is not None:
+                    pred_lbl = predicted_labels[idx]
+                    axs[row,col].set_title(r'Class {} $\rightarrow$ {}'.format(lbl, pred_lbl), fontsize=20)
+                else:
+                    axs[row,col].set_title(r'Class {}'.format(lbl), fontsize=20)
             # Turn of axis for all axes
             axs[row,col].axis('off')
+            if idx >= num_samples - 1:
+                print_img = False
     # Return figure object and axes
     return fig, axs
 
 
 
-
-
-
-            # img = img.permute(1,2,0)
-            # img = (img + 1.0)/2.0
-
-
-
-
-    #
-    # for row in range(rows):
-    #     for col in range(cols):
-    #         # Extract image and label
-    #         img = dataset[row*cols+col][0]['image']
-    #         lbl = dataset[row*cols+col][1]
-    #         # Change order of dimensions and convert to numpy array
-    #         img = img.permute(1,2,0).numpy()
-    #         # Unnormalize the image to range [0,1] so that it can be plotted with imshow
-    #         mean_inv = torch.div(-mean, std)
-    #         std_inv = torch.div(1, std)
-    #         album_inv = album.Compose([album.Normalize(mean=mean_inv, std=std_inv, max_pixel_value=1.0)])
-    #         img = album_inv(image=img)['image']
-    #         # Plot image
-    #         axs[row,col].imshow(img)
-    #         axs[row,col].axis('off')
-    #         axs[row,col].set_title('Class '+str(lbl), fontsize=20)
+def plot_attacks(rows, images, labels, init_labels, attacked_images, attacked_labels, gradients,
+                 epsilon, targeted_labels=None):
+    """
+    Plot original images, the pertubation and attacked images side by side.
+    """
+    # Initialize figure and axes
+    fig, axs = plt.subplots(rows, 3, figsize=(15,5*rows))
+    # Iterate over all attacked images
+    for i, (img, lbl, init_lbl, att_img, att_lbl, grad) in enumerate(
+    zip(images, labels, init_labels, attacked_images, attacked_labels, gradients)):
+        # Get current axis
+        ax = axs[i]
+        # Convert images to range [0,1] and re-order dimensions for plotting
+        img = convert_image(img)
+        grad = convert_image(grad)
+        att_img = convert_image(att_img)
+        # Plot original image
+        ax[0].imshow(img)
+        ax[0].set_title(r'Class {} $\rightarrow$ {}'.format(lbl, init_lbl), fontsize=20)
+        # Plot gradients
+        ax[1].imshow(grad)
+        ax[1].set_title('Attack with $\epsilon='+str(np.around(epsilon,5))+'$', fontsize=20)
+        # Plot attacked image
+        ax[2].imshow(att_img)
+        ax[2].set_title(r'Class {} $\rightarrow$ {}{}'.format(lbl, att_lbl,
+            ' (target '+str(int(targeted_labels[i]))+')' if targeted_labels is not None else ''), fontsize=20)
+        # Turn of axis for all aexes
+        for a in ax:
+            a.axis('off')
+        # Only plot rows images
+        if i >= rows - 1:
+            break
+    # Return figure object and axes
     return fig, axs
+
+
