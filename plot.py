@@ -3,35 +3,42 @@ import numpy as np
 import matplotlib.pyplot as plt
 import torch
 from data import dataloader_to_lists
+import albumentations as album
 
 
 
-def plot_dataloader(dataloader, rows, cols, width):
+def plot_dataloader(dataloader, rows, cols, width, mean, std):
     """
     Helper function to plot some examples from dataloader.
     """
     # Load images and labels from dataloader into lists
     images, labels = dataloader_to_lists(dataloader, max_samples=rows*cols)
     # Use plot_images to plot images and labels
-    fig, axs = plot_images(images, labels, rows, cols, width)
+    fig, axs = plot_images(images, labels, rows, cols, width, mean, std)
     # Return figure object and axes
     return fig, axs
 
 
 
-def convert_image(image):
+def convert_image(image, mean, std):
     """
     Helper function to rescale image values to the range [0,1] again.
     """
-    # Rearange order of dimensions so that the color components are last
+    # # Rearange order of dimensions so that the color components are last
+    # image = image.permute(1,2,0).numpy()
+    # # Rescale image values from range [-1,1] to range [0,1]
+    # image = (image + 1)/2
+    # return image
     image = image.permute(1,2,0).numpy()
-    # Rescale image values from range [-1,1] to range [0,1]
-    image = (image + 1)/2
+    mean_inv = torch.div(-mean, std)
+    std_inv = torch.div(1, std)
+    album_inv = album.Compose([album.Normalize(mean=mean_inv, std=std_inv, max_pixel_value=1.0)])
+    image = album_inv(image=image)['image']
     return image
 
 
 
-def plot_images(images, labels, rows, cols, width,
+def plot_images(images, labels, rows, cols, width, mean, std,
                 predicted_labels=None, targeted_labels=None):
     """
     Plot some examples from dataset by first unnormalize to range [0,1].
@@ -51,7 +58,7 @@ def plot_images(images, labels, rows, cols, width,
                 img = images[idx]
                 lbl = labels[idx]
                 # Convert image to correct range
-                img = convert_image(img)
+                img = convert_image(img, mean, std)
                 # Print image and corresponding label
                 axs[row,col].imshow(img)
                 if predicted_labels is not None:
@@ -69,7 +76,7 @@ def plot_images(images, labels, rows, cols, width,
 
 
 def plot_attacks(rows, images, labels, init_labels, attacked_images, attacked_labels, gradients,
-                 epsilon, targeted_labels=None):
+                 epsilon, mean, std, targeted_labels=None):
     """
     Plot original images, the pertubation and attacked images side by side.
     """
@@ -81,9 +88,9 @@ def plot_attacks(rows, images, labels, init_labels, attacked_images, attacked_la
         # Get current axis
         ax = axs[i]
         # Convert images to range [0,1] and re-order dimensions for plotting
-        img = convert_image(img)
-        grad = convert_image(grad)
-        att_img = convert_image(att_img)
+        img = convert_image(img, mean, std)
+        grad = convert_image(grad, mean, std)
+        att_img = convert_image(att_img, mean, std)
         # Plot original image
         ax[0].imshow(img)
         ax[0].set_title(r'Class {} $\rightarrow$ {}'.format(lbl, init_lbl), fontsize=20)

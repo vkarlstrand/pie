@@ -3,7 +3,7 @@ import os
 import numpy as np
 import torch
 from collections import Counter
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader
 import pandas as pd
 import PIL
 
@@ -128,6 +128,31 @@ def samples_per_class(lbls):
     for pair in pairs:
         print(output_format.format(pair[0], pair[1], int(100*pair[1]/sum)))
     print('    Total:   {:>5}'.format(sum))
+
+
+
+def compute_mean_std(dataset):
+    """
+    Compute mean and standard deviation of dataset of images.
+    """
+    # Get image size
+    image_size = dataset[0][0]['image'].shape[1]
+    # Load data
+    dataloader = DataLoader(dataset, batch_size=32)
+    # Initialize sums for results
+    total_sum = torch.tensor([0.0, 0.0, 0.0])
+    total_sum_square = torch.tensor([0.0, 0.0, 0.0])
+    # Iterate over all data and sum sums of batches
+    for data in dataloader:
+        img = data[0]['image']
+        total_sum += img.sum(axis=[0,2,3])
+        total_sum_square += (img**2).sum(axis=[0,2,3])
+    # Compute total pixel count and overall mean and std
+    total_pixel_count = len(dataset) * image_size * image_size
+    mean = total_sum/total_pixel_count
+    std = torch.sqrt((total_sum_square/total_pixel_count)-(mean**2))
+    # Return results
+    return mean, std
 
 
 

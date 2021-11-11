@@ -6,9 +6,11 @@ from plot import convert_image
 
 
 class Attack:
-    def __init__(self, name, model):
+    def __init__(self, name, model, mean, std):
         self.name = name
         self.model = model
+        self.mean = mean
+        self.std = std
         self.targeted = False
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         self.loss_function = torch.nn.CrossEntropyLoss()
@@ -24,8 +26,22 @@ class Attack:
         Clamp image to min and max values based on mean and standard devation
         for each individual RGB value from training data set.
         """
-        images = torch.clamp(input=images, min=-1, max=1)
+        data_min = torch.div(-self.mean, self.std)
+        data_max = torch.div(1.0 - self.mean, self.std)
+        for i, (dmin, dmax) in enumerate(zip(data_min, data_max)):
+            images[:,i,:,:] = torch.clamp(input=images[:,i,:,:], min=dmin, max=dmax)
         return images
+
+    def rescale_gradients(self, gradients):
+        """
+        Scale gradients so that when epsilon is 1 and a pixel is in one edge of the range, it goes all the way
+        out to the other edge, like in the article 'Explaining and harnessing adversarial examples'.
+        """
+        data_min = torch.div(-self.mean, self.std)
+        data_max = torch.div(1.0 - self.mean, self.std)
+        for i, (dmin, dmax) in enumerate(zip(data_min, data_max)):
+            gradients[:,i,:,:] = gradients[:,i,:,:]*(dmax - dmin)
+        return gradients
 
     def get_targeted_labels(self, labels):
         """
@@ -59,8 +75,8 @@ class Attack:
 
 
 class FGSM(Attack):
-    def __init__(self, model, epsilon=0.007, targeted=False):
-        super().__init__('FGSM', model)
+    def __init__(self, model, mean, std, epsilon=0.007, targeted=False):
+        super().__init__('FGSM', model, mean, std)
         self.epsilon = epsilon
         self.targeted = targeted
 
@@ -88,7 +104,7 @@ class FGSM(Attack):
             cost = loss(outputs, labels)
 
         gradients = torch.autograd.grad(cost, images)[0]
-        gradients_sign = gradients.sign()
+        gradients_sign = self.rescale_gradients(gradients.sign())
         attacked_images = images + self.epsilon*gradients_sign
         attacked_images = self.clamp(attacked_images).detach()
         gradients_sign = self.clamp(gradients_sign)
@@ -98,8 +114,8 @@ class FGSM(Attack):
 
 
 class IFGSM(Attack):
-    def __init__(self, model, epsilon=0.007, steps=1, targeted=False):
-        super().__init__('FGSM', model)
+    def __init__(self, model, mean, std, epsilon=0.007, steps=1, targeted=False):
+        super().__init__('FGSM', model, mean, std)
         self.epsilon = epsilon
         self.steps = steps
         self.targeted = targeted
@@ -132,7 +148,7 @@ class IFGSM(Attack):
                 cost = loss(outputs, labels)
 
             gradients = torch.autograd.grad(cost, images)[0]
-            gradients_sign = gradients.sign()
+            gradients_sign = self.rescale_gradients(gradients.sign())
             attacked_images = images + (self.epsilon/self.steps)*gradients_sign
             attacked_images = self.clamp(attacked_images).detach()
             images = attacked_images
@@ -176,7 +192,7 @@ def evaluate_attacks(model, labels, attacked_images, attacked_labels, targeted_l
 
 
 
-def save_images(images, attacked_images, gradients, labels, attacked_labels):
+def save_images(images, attacked_images, gradients, labels, attacked_labels, mean, std):
     save_dir = './attacked_images'
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
@@ -186,9 +202,9 @@ def save_images(images, attacked_images, gradients, labels, attacked_labels):
     csv_gradients = ''
     for i, (img, att_img, grad, lbl, att_lbl) in enumerate(
     zip(images, attacked_images, gradients, labels, attacked_labels)):
-        img = (img + 1)/2
-        att_img = (att_img + 1)/2
-        grad = (grad + 1)/2
+        img = torch.tensor(convert_image(img, mean, std)).permute(2,0,1)
+        att_img = torch.tensor(convert_image(att_img, mean, std)).permute(2,0,1)
+        grad = torch.tensor(convert_image(grad, mean, std)).permute(2,0,1)
         img_str = str(i)+'_img.png'
         att_str = str(i)+'_att.png'
         grad_str = str(i)+'_grad.png'
