@@ -228,7 +228,7 @@ def dataloader_to_lists(dataloader, max_samples):
             labels.append(lbl)
             counter += 1
         # Break if maximum number of samples have been collected
-        if counter >= max_samples - 1:
+        if counter >= max_samples:
             break
     # Return images and labels in lists
     return images, labels
