@@ -9,7 +9,8 @@ import PIL
 
 
 
-def partition_data(input_file, ratios, out_path, uniform=False):
+def partition_data(input_file, ratios, out_path, uniform=False, num_seed=None,
+    shuffle=True):
     """
     Partition data into training, validation and test data.
     Saves partitioned data to three .csv files.
@@ -27,7 +28,11 @@ def partition_data(input_file, ratios, out_path, uniform=False):
     imgs = data[:,0]
     lbls = data[:,1]
 
-    idxs_shuffle = np.random.permutation(len(lbls))
+    if shuffle:
+        np.random.seed(num_seed)
+        idxs_shuffle = np.random.permutation(len(lbls))
+    else:
+        idxs_shuffle = np.arange(len(lbls))
     imgs = imgs[idxs_shuffle]
     lbls = lbls[idxs_shuffle]
 

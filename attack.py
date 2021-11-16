@@ -40,7 +40,7 @@ class Attack:
         data_min = torch.div(-self.mean, self.std)
         data_max = torch.div(1.0 - self.mean, self.std)
         for i, (dmin, dmax) in enumerate(zip(data_min, data_max)):
-            gradients[:,i,:,:] = gradients[:,i,:,:]*(dmax - dmin)
+            gradients[:,i,:,:] = gradients[:,i,:,:]*(dmax - dmin)/2
         return gradients
 
     def get_targeted_labels(self, labels):
