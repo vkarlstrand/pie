@@ -192,7 +192,7 @@ def evaluate_attacks(model, labels, attacked_images, attacked_labels, targeted_l
 
 
 
-def save_images(images, attacked_images, gradients, labels, attacked_labels, targeted_labels, mean, std):
+def save_images(images, attacked_images, gradients, labels, attacked_labels, targeted_labels, init_labels, mean, std):
     save_dir = './attacked_images'
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
@@ -201,8 +201,8 @@ def save_images(images, attacked_images, gradients, labels, attacked_labels, tar
     csv_attacked_images = ''
     csv_targeted_images = ''
     csv_gradients = ''
-    for i, (img, att_img, grad, lbl, att_lbl, targeted_lbl) in enumerate(
-    zip(images, attacked_images, gradients, labels, attacked_labels, targeted_labels)):
+    for i, (img, att_img, grad, lbl, att_lbl, targeted_lbl, init_lbl) in enumerate(
+    zip(images, attacked_images, gradients, labels, attacked_labels, targeted_labels, init_labels)):
         img = torch.tensor(convert_image(img, mean, std)).permute(2,0,1)
         att_img = torch.tensor(convert_image(att_img, mean, std)).permute(2,0,1)
         grad = torch.tensor(convert_image(grad, mean, std)).permute(2,0,1)
@@ -215,7 +215,7 @@ def save_images(images, attacked_images, gradients, labels, attacked_labels, tar
         csv_images += (img_str+','+str(lbl.item())+'\n')
         csv_attacked_images += (att_str+','+str(att_lbl.item())+'\n')
         csv_targeted_images += (att_str+','+str(targeted_lbl.item())+'\n')
-        csv_gradients += (grad_str+','+str(lbl.item())+','+str(att_lbl.item())+','+str(targeted_lbl.item())+'\n')
+        csv_gradients += (grad_str+','+str(lbl.item())+','+str(init_lbl.item())+','+str(att_lbl.item())+','+str(targeted_lbl.item())+'\n')
     with open(save_dir+'/'+'original_images.csv', 'w') as file:
         file.write(csv_images[0:-1])
     with open(save_dir+'/'+'attacked_images.csv', 'w') as file:

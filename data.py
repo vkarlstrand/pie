@@ -10,7 +10,7 @@ import PIL
 
 
 def partition_data(input_file, ratios, out_path, uniform=False, num_seed=None,
-    shuffle=True):
+    shuffle=True, skip_header=1):
     """
     Partition data into training, validation and test data.
     Saves partitioned data to three .csv files.
@@ -22,7 +22,7 @@ def partition_data(input_file, ratios, out_path, uniform=False, num_seed=None,
     ratio_test = ratios[2]
 
     # Import data
-    data = np.genfromtxt(input_file, skip_header=1, dtype='str', delimiter=',')
+    data = np.genfromtxt(input_file, skip_header=skip_header, dtype='str', delimiter=',')
 
     # Divide by image and label
     imgs = data[:,0]
