@@ -151,6 +151,7 @@ class IFGSM(Attack):
             gradients_sign = self.rescale_gradients(gradients.sign())
             attacked_images = images + (self.epsilon/self.steps)*gradients_sign
             attacked_images = self.clamp(attacked_images).detach()
+
             images = attacked_images
 
             gradients_sum = gradients_sum + gradients_sign
