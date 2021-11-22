@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 from torchvision.utils import save_image
+from skimage.metrics import structural_similarity as ssim
 import os
 from plot import convert_image
 
@@ -73,6 +74,22 @@ class Attack:
             similarities[i] = similarity
         return similarities
 
+    def ssim(self, images, attacked_images):
+        """
+        Function to compute structural similarity (SSIM) of images.
+        """
+        similarities = torch.zeros(size=(images.shape[0],))
+        data_min = torch.div(-self.mean, self.std)
+        data_max = torch.div(1.0 - self.mean, self.std)
+        data_range = (data_max.numpy() - data_min.numpy()).max()
+        for i, (image, attacked_image) in enumerate(zip(images, attacked_images)):
+            similarities[i] = ssim(im1=attacked_image.permute(1,2,0).numpy(),
+                                   im2=image.permute(1,2,0).numpy(),
+                                   multichannel=True,
+                                   data_range=data_range)
+        return similarities
+
+
 
 class FGSM(Attack):
     def __init__(self, model, mean, std, epsilon=0.007, targeted=False):
@@ -108,23 +125,25 @@ class FGSM(Attack):
         attacked_images = images + self.epsilon*gradients_sign
         attacked_images = self.clamp(attacked_images).detach()
         gradients_sign = self.clamp(gradients_sign)
-        similarities = self.similarity(images, attacked_images)
+        similarities = self.ssim(images, attacked_images)
 
         return attacked_images, gradients_sign, targeted_labels, similarities
 
 
 class IFGSM(Attack):
-    def __init__(self, model, mean, std, epsilon=0.007, steps=1, targeted=False):
+    def __init__(self, model, mean, std, epsilon=0.007, steps=1, targeted=False, threshold=None):
         super().__init__('FGSM', model, mean, std)
         self.epsilon = epsilon
         self.steps = steps
         self.targeted = targeted
+        self.threshold = threshold
 
     def attack(self, images, labels):
         """
         IFGSM attack algorithm.
         Based on https://adversarial-attacks-pytorch.readthedocs.io/en/latest/attacks.html.
         """
+        num_samples = images.shape[0]
         images = images.clone().detach().to(self.device)
         labels = labels.clone().detach().to(self.device)
         loss = self.loss_function.to(self.device)
@@ -135,7 +154,11 @@ class IFGSM(Attack):
             targeted_labels = None
 
         original_images = images.clone().detach()
-        gradients_sum = 0
+        steps = torch.zeros(size=(num_samples,))
+        epsilons = torch.zeros(size=(num_samples,))
+        samples_not_done = torch.arange(start=0, end=num_samples)
+        gradients_sum = torch.zeros(size=images.shape)
+        attacked_images = torch.zeros(size=images.shape)
 
         for step in range(self.steps):
             images.requires_grad = True
@@ -149,17 +172,30 @@ class IFGSM(Attack):
 
             gradients = torch.autograd.grad(cost, images)[0]
             gradients_sign = self.rescale_gradients(gradients.sign())
-            attacked_images = images + (self.epsilon/self.steps)*gradients_sign
-            attacked_images = self.clamp(attacked_images).detach()
+            attacked_images[samples_not_done,:,:,:] = images[samples_not_done,:,:,:] + (self.epsilon/self.steps)*gradients_sign[samples_not_done,:,:,:]
+            attacked_images = attacked_images.detach()
+            attacked_images = self.clamp(attacked_images)
+            epsilons[samples_not_done] += (self.epsilon/self.steps)
+            steps[samples_not_done] += 1
 
-            images = attacked_images
+            # Compute SSIM to update samples not done
+            similarities = self.ssim(original_images, attacked_images)
+            if self.threshold is not None:
+                samples_not_done = torch.where(similarities>self.threshold)[0]
+
+            if samples_not_done.shape[0] <= 0:
+                break
+
+            images = attacked_images.detach()
 
             gradients_sum = gradients_sum + gradients_sign
 
-        gradients_sign = self.clamp(gradients_sum/self.steps)
-        similarities = self.similarity(original_images, attacked_images)
+        for i, step in enumerate(steps):
+            gradients_sum[i] = gradients_sum[i]/step
+        gradients_sign = self.clamp(gradients_sum)
+        similarities = self.ssim(original_images, attacked_images)
 
-        return attacked_images, gradients_sign, targeted_labels, similarities
+        return attacked_images, gradients_sign, targeted_labels, similarities, epsilons, steps
 
 
 

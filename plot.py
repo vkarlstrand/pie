@@ -76,15 +76,15 @@ def plot_images(images, labels, rows, cols, width, mean, std,
 
 
 def plot_attacks(rows, images, labels, init_labels, attacked_images, attacked_labels, gradients,
-                 epsilon, mean, std, targeted_labels=None):
+                 epsilons, steps, mean, std, targeted_labels=None):
     """
     Plot original images, the pertubation and attacked images side by side.
     """
     # Initialize figure and axes
     fig, axs = plt.subplots(rows, 3, figsize=(15,5*rows))
     # Iterate over all attacked images
-    for i, (img, lbl, init_lbl, att_img, att_lbl, grad) in enumerate(
-    zip(images, labels, init_labels, attacked_images, attacked_labels, gradients)):
+    for i, (img, lbl, init_lbl, att_img, att_lbl, grad, eps, step) in enumerate(
+    zip(images, labels, init_labels, attacked_images, attacked_labels, gradients, epsilons, steps)):
         # Get current axis
         ax = axs[i]
         # Convert images to range [0,1] and re-order dimensions for plotting
@@ -96,7 +96,7 @@ def plot_attacks(rows, images, labels, init_labels, attacked_images, attacked_la
         ax[0].set_title(r'Class {} $\rightarrow$ {}'.format(lbl, init_lbl), fontsize=20)
         # Plot gradients
         ax[1].imshow(grad)
-        ax[1].set_title('Attack with $\epsilon='+str(np.around(epsilon,5))+'$', fontsize=20)
+        ax[1].set_title('Attack ($\epsilon='+str(np.around(eps.item(),5))+',T='+str(int(step))+'$)', fontsize=20)
         # Plot attacked image
         ax[2].imshow(att_img)
         ax[2].set_title(r'Class {} $\rightarrow$ {}{}'.format(lbl, att_lbl,
