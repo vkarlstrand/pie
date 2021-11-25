@@ -131,71 +131,99 @@ class FGSM(Attack):
 
 
 class IFGSM(Attack):
-    def __init__(self, model, mean, std, epsilon=0.007, steps=1, targeted=False, threshold=None):
+    def __init__(self, model, mean, std, epsilon=0.007, steps=1, targeted=False, threshold=None, until_attacked=False):
         super().__init__('FGSM', model, mean, std)
         self.epsilon = epsilon
         self.steps = steps
         self.targeted = targeted
         self.threshold = threshold
+        self.until_attacked = until_attacked
 
     def attack(self, images, labels):
         """
         IFGSM attack algorithm.
         Based on https://adversarial-attacks-pytorch.readthedocs.io/en/latest/attacks.html.
         """
+        # Get data
         num_samples = images.shape[0]
+        true_labels = labels.clone()
         images = images.clone().detach().to(self.device)
         labels = labels.clone().detach().to(self.device)
+        original_images = images.clone().detach()
         loss = self.loss_function.to(self.device)
 
+        # Get targeted labels
         if self.targeted:
-            targeted_labels = self.get_targeted_labels(labels)
+            targeted_labels = self.get_targeted_labels(true_labels)
         else:
             targeted_labels = None
 
-        original_images = images.clone().detach()
+        # Initalize result arrays
         steps = torch.zeros(size=(num_samples,))
         epsilons = torch.zeros(size=(num_samples,))
-        samples_not_done = torch.arange(start=0, end=num_samples)
         gradients_sum = torch.zeros(size=images.shape)
         attacked_images = torch.zeros(size=images.shape)
 
-        for step in range(self.steps):
-            images.requires_grad = True
+        # Initalize list of not done samples
+        samples_not_done = torch.arange(start=0, end=num_samples)
 
+        # Set model to evaluate
+        self.model.eval()
+
+        # Iterate for all steps
+        for step in range(self.steps):
+
+            # Predict label of current image
+            images.requires_grad = True
             outputs = self.model(images)
 
+            # Get cost for current preducted outputs and targeted labels or true labels
             if self.targeted:
                 cost = -loss(outputs, targeted_labels)
             else:
                 cost = loss(outputs, labels)
 
+            # Compute gradient, take sign and rescale to mean and std of data
             gradients = torch.autograd.grad(cost, images)[0]
             gradients_sign = self.rescale_gradients(gradients.sign())
+
+            # Attack image and clamp it
             attacked_images[samples_not_done,:,:,:] = images[samples_not_done,:,:,:] + (self.epsilon/self.steps)*gradients_sign[samples_not_done,:,:,:]
             attacked_images = attacked_images.detach()
             attacked_images = self.clamp(attacked_images)
+
+            # Save results of epsilon and number of steps
             epsilons[samples_not_done] += (self.epsilon/self.steps)
             steps[samples_not_done] += 1
+            gradients_sum[samples_not_done,:,:,:] = gradients_sum[samples_not_done,:,:,:] + gradients_sign[samples_not_done,:,:,:]
 
-            # Compute SSIM to update samples not done
+            # Compute similarity
             similarities = self.ssim(original_images, attacked_images)
+
+            # Update images with attacked images
+            images = attacked_images.detach()
+
+            # Predict labels of attacked image
+            outputs = self.model(images)
+            attacked_labels = outputs.max(1, keepdim=False)[1]
+
+            # See if similarity is below threshold
             if self.threshold is not None:
                 samples_not_done = torch.where(similarities>self.threshold)[0]
-
+            # See if attack succeded to misclassify the samples
+            if self.until_attacked:
+                samples_not_done = torch.where(attacked_labels==true_labels)[0]
+            # Break of no samples left to attack
             if samples_not_done.shape[0] <= 0:
                 break
 
-            images = attacked_images.detach()
-
-            gradients_sum = gradients_sum + gradients_sign
-
+        #  Normalize gradients and clamp them
         for i, step in enumerate(steps):
             gradients_sum[i] = gradients_sum[i]/step
         gradients_sign = self.clamp(gradients_sum)
-        similarities = self.ssim(original_images, attacked_images)
 
-        return attacked_images, gradients_sign, targeted_labels, similarities, epsilons, steps
+        # Return results
+        return attacked_images, attacked_labels, gradients_sign, targeted_labels, similarities, epsilons, steps
 
 
 
