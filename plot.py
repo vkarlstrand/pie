@@ -22,18 +22,16 @@ def plot_dataloader(dataloader, rows, cols, width, mean, std):
 
 def convert_image(image, mean, std):
     """
-    Helper function to rescale image values to the range [0,1] again.
+    Helper function to rescale image values to the range [0,1] again and
+    then to [0,255] as integers.
     """
     # # Rearange order of dimensions so that the color components are last
-    # image = image.permute(1,2,0).numpy()
-    # # Rescale image values from range [-1,1] to range [0,1]
-    # image = (image + 1)/2
-    # return image
     image = image.permute(1,2,0).numpy()
     mean_inv = torch.div(-mean, std)
     std_inv = torch.div(1, std)
     album_inv = album.Compose([album.Normalize(mean=mean_inv, std=std_inv, max_pixel_value=1.0)])
     image = album_inv(image=image)['image']
+    image = np.round(255*image).astype(int)
     return image
 
 

@@ -33,15 +33,19 @@ class Attack:
             images[:,i,:,:] = torch.clamp(input=images[:,i,:,:], min=dmin, max=dmax)
         return images
 
-    def quantize(self, images, steps=256):
+    def quantize(self, images, max_val=255):
         """
         Quantize image to specified number of steps.
         """
         data_min = torch.div(-self.mean, self.std)
         data_max = torch.div(1.0 - self.mean, self.std)
         for i, (dmin, dmax) in enumerate(zip(data_min, data_max)):
-            step_size = (dmax - dmin)/steps
-            images[:,i,:,:] = step_size*torch.floor(images[:,i,:,:]/step_size + 1/2)
+            # Convert to range [0,1]
+            images[:,i,:,:] = (images[:,i,:,:] - dmin)/(dmax - dmin)
+            # Scale to {0,255} and round, then divide by 255 again
+            images[:,i,:,:] = torch.round(max_val*images[:,i,:,:])/max_val
+            # Return to range [dmin,dmax]
+            images[:,i,:,:] = images[:,i,:,:]*(dmax - dmin) + dmin
         return images
 
     def rescale_gradients(self, gradients):
@@ -202,7 +206,7 @@ class IFGSM(Attack):
             attacked_images[samples_not_done,:,:,:] = images[samples_not_done,:,:,:] + (self.epsilon/self.steps)*gradients_sign[samples_not_done,:,:,:]
             attacked_images = attacked_images.detach()
             attacked_images = self.clamp(attacked_images)
-            attacked_images_quantized = self.quantize(attacked_images.clone(), steps=256)
+            attacked_images_quantized = self.quantize(attacked_images.clone())
 
             # Save results of epsilon and number of steps
             epsilons[samples_not_done] += (self.epsilon/self.steps)
@@ -234,11 +238,8 @@ class IFGSM(Attack):
             gradients_sum[i] = gradients_sum[i]/step
         gradients_sign = self.clamp(gradients_sum)
 
-        attacked_images = self.quantize(attacked_images.clone(), steps=256)
-        attacked_images = self.clamp(attacked_images)
-
         # Return results
-        return attacked_images, attacked_labels, gradients_sign, targeted_labels, similarities, epsilons, steps
+        return attacked_images_quantized, attacked_labels, gradients_sign, targeted_labels, similarities, epsilons, steps
 
 
 
@@ -283,9 +284,9 @@ def save_images(images, attacked_images, gradients, labels, attacked_labels, tar
     csv_gradients = ''
     for i, (img, att_img, grad, lbl, att_lbl, targeted_lbl, init_lbl) in enumerate(
     zip(images, attacked_images, gradients, labels, attacked_labels, targeted_labels, init_labels)):
-        img = torch.tensor(convert_image(img, mean, std)).permute(2,0,1)
-        att_img = torch.tensor(convert_image(att_img, mean, std)).permute(2,0,1)
-        grad = torch.tensor(convert_image(grad, mean, std)).permute(2,0,1)
+        img = torch.tensor(convert_image(img, mean, std)).permute(2,0,1).type(torch.float)/255
+        att_img = torch.tensor(convert_image(att_img, mean, std)).permute(2,0,1).type(torch.float)/255
+        grad = torch.tensor(convert_image(grad, mean, std)).permute(2,0,1).type(torch.float)/255
         img_str = str(i)+'_img.png'
         att_str = str(i)+'_att.png'
         grad_str = str(i)+'_grad.png'
