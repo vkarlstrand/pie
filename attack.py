@@ -33,6 +33,17 @@ class Attack:
             images[:,i,:,:] = torch.clamp(input=images[:,i,:,:], min=dmin, max=dmax)
         return images
 
+    def quantize(self, images, steps=256):
+        """
+        Quantize image to specified number of steps.
+        """
+        data_min = torch.div(-self.mean, self.std)
+        data_max = torch.div(1.0 - self.mean, self.std)
+        for i, (dmin, dmax) in enumerate(zip(data_min, data_max)):
+            step_size = (dmax - dmin)/steps
+            images[:,i,:,:] = step_size*torch.floor(images[:,i,:,:]/step_size + 1/2)
+        return images
+
     def rescale_gradients(self, gradients):
         """
         Scale gradients so that when epsilon is 1 and a pixel is in one edge of the range, it goes all the way
@@ -191,6 +202,7 @@ class IFGSM(Attack):
             attacked_images[samples_not_done,:,:,:] = images[samples_not_done,:,:,:] + (self.epsilon/self.steps)*gradients_sign[samples_not_done,:,:,:]
             attacked_images = attacked_images.detach()
             attacked_images = self.clamp(attacked_images)
+            attacked_images_quantized = self.quantize(attacked_images.clone(), steps=256)
 
             # Save results of epsilon and number of steps
             epsilons[samples_not_done] += (self.epsilon/self.steps)
@@ -198,14 +210,14 @@ class IFGSM(Attack):
             gradients_sum[samples_not_done,:,:,:] = gradients_sum[samples_not_done,:,:,:] + gradients_sign[samples_not_done,:,:,:]
 
             # Compute similarity
-            similarities = self.ssim(original_images, attacked_images)
+            similarities = self.ssim(original_images, attacked_images_quantized)
 
             # Update images with attacked images
             images = attacked_images.detach()
 
-            # Predict labels of attacked image
-            outputs = self.model(images)
-            attacked_labels = outputs.max(1, keepdim=False)[1]
+            # Predict labels of attacked quantized images
+            outputs_attacked = self.model(attacked_images_quantized)
+            attacked_labels = outputs_attacked.max(1, keepdim=False)[1]
 
             # See if similarity is below threshold
             if self.threshold is not None:
@@ -221,6 +233,9 @@ class IFGSM(Attack):
         for i, step in enumerate(steps):
             gradients_sum[i] = gradients_sum[i]/step
         gradients_sign = self.clamp(gradients_sum)
+
+        attacked_images = self.quantize(attacked_images.clone(), steps=256)
+        attacked_images = self.clamp(attacked_images)
 
         # Return results
         return attacked_images, attacked_labels, gradients_sign, targeted_labels, similarities, epsilons, steps
