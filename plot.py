@@ -26,7 +26,10 @@ def convert_image(image, mean, std):
     then to [0,255] as integers.
     """
     # # Rearange order of dimensions so that the color components are last
-    image = image.permute(1,2,0).numpy()
+    try:
+        image = image.permute(1,2,0).numpy()
+    except:
+        image = image.permute(1,2,0).cpu().numpy()
     mean_inv = torch.div(-mean, std)
     std_inv = torch.div(1, std)
     album_inv = album.Compose([album.Normalize(mean=mean_inv, std=std_inv, max_pixel_value=1.0)])

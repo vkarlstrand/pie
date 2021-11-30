@@ -256,8 +256,12 @@ def evaluate_attacks(model, labels, attacked_images, attacked_labels, targeted_l
                      ' '.join([str(int(lbl)) for lbl in attacked_labels])))
     print(out.format('Wrong prediction:',
                      ' '.join(['x' if labels[i]!=attacked_labels[i] else ' ' for i in range(len(labels))])))
-    print(out.format('Accuracy:',
+    try:
+        print(out.format('Accuracy:',
                      str(np.around(np.count_nonzero(attacked_labels==labels)*100/num_samples, 2))+str('%')))
+    except:
+        print(out.format('Accuracy:',
+                     str(np.around(np.count_nonzero(attacked_labels.cpu()==labels.cpu())*100/num_samples, 2))+str('%')))   
     if targeted_labels is not None:
         print('')
         print(out.format('True labels:',
@@ -268,8 +272,12 @@ def evaluate_attacks(model, labels, attacked_images, attacked_labels, targeted_l
                          ' '.join([str(int(lbl)) for lbl in targeted_labels])))
         print(out.format('Correct target:',
                          ' '.join(['o' if targeted_labels[i]==attacked_labels[i] else ' ' for i in range(len(labels))])))
-        print(out.format('Target accuracy:',
-                         str(np.around(np.count_nonzero(attacked_labels==targeted_labels)*100/num_samples, 2))+str('%')))
+        try:
+            print(out.format('Target accuracy:',
+                             str(np.around(np.count_nonzero(attacked_labels==targeted_labels)*100/num_samples, 2))+str('%')))
+        except:
+            print(out.format('Target accuracy:',
+                             str(np.around(np.count_nonzero(attacked_labels.cpu()==targeted_labels.cpu())*100/num_samples, 2))+str('%')))    
 
 
 

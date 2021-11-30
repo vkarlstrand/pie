@@ -129,7 +129,11 @@ def test(dataloader, model, device, loss_function, optimizer):
             total_accuracy += batch_correct
 
             # Find misclassifications and save
-            misclassified_idxs = np.where(pred_labels!=labels)
+            # Find misclassifications and save
+            try:
+                misclassified_idxs = np.where(pred_labels!=labels)
+            except:
+                misclassified_idxs = np.where(pred_labels.cpu()!=labels.cpu())
             correct_label = labels[misclassified_idxs]
             misclassified_label = pred_labels[misclassified_idxs]
             if misclassified_label.numel():
