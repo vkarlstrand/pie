@@ -134,8 +134,11 @@ def test(dataloader, model, device, loss_function, optimizer):
                 misclassified_idxs = np.where(pred_labels!=labels)
             except:
                 misclassified_idxs = np.where(pred_labels.cpu()!=labels.cpu())
+            #Correct labels of misclassified images
             correct_label = labels[misclassified_idxs]
+            #Predicted labels of misclassified images
             misclassified_label = pred_labels[misclassified_idxs]
+
             if misclassified_label.numel():
                 for i in range(len(misclassified_label)):
                     misclassified_image = images[misclassified_idxs[0][i],:,:,:].squeeze()

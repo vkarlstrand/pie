@@ -85,13 +85,21 @@ def partition_data(input_file, ratios, out_path, uniform=False, num_seed=None,
             lbls.append(lbls2[n])
 
     # Divide into training, validation and test data sets
+    #end index of training data
     idxs_train = int(ratio_train*len(imgs))
+    #end index of validation data
     idxs_validation = int((ratio_train+ratio_validation)*len(imgs))
+    #training images
     imgs_train = imgs[0:idxs_train]
+    #validation images
     imgs_validation = imgs[idxs_train:idxs_validation]
+    #test images starting from end of validation index
     imgs_test = imgs[idxs_validation:]
+    #training labels
     lbls_train = lbls[0:idxs_train]
+    #validation labels
     lbls_validation = lbls[idxs_train:idxs_validation]
+    #test labels
     lbls_test = lbls[idxs_validation:]
 
     # If path does not exist, create it

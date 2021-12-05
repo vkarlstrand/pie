@@ -4,7 +4,11 @@ from torchvision.utils import save_image
 from skimage.metrics import structural_similarity as ssim
 import os
 from plot import convert_image
-
+from plot import plot_attacks
+from data import LoadDatasetFromCSV, compute_mean_std
+from torch.utils.data import DataLoader
+import gc
+import matplotlib.pyplot as plt
 
 class Attack:
     def __init__(self, name, model, mean, std):
@@ -97,11 +101,20 @@ class Attack:
         data_min = torch.div(-self.mean, self.std)
         data_max = torch.div(1.0 - self.mean, self.std)
         data_range = (data_max.numpy() - data_min.numpy()).max()
-        for i, (image, attacked_image) in enumerate(zip(images, attacked_images)):
-            similarities[i] = ssim(im1=attacked_image.permute(1,2,0).numpy(),
-                                   im2=image.permute(1,2,0).numpy(),
-                                   multichannel=True,
-                                   data_range=data_range)
+        try:
+            for i, (image, attacked_image) in enumerate(zip(images, attacked_images)):
+                similarities[i] = ssim(im1=attacked_image.permute(1,2,0).numpy(),
+                                       im2=image.permute(1,2,0).numpy(),
+                                       multichannel=True,
+                                       data_range=data_range)
+        except:
+            images = images.cpu()
+            attacked_images = attacked_images.cpu()
+            for i, (image, attacked_image) in enumerate(zip(images, attacked_images)):
+                similarities[i] = ssim(im1=attacked_image.permute(1,2,0).numpy(),
+                                       im2=image.permute(1,2,0).numpy(),
+                                       multichannel=True,
+                                       data_range=data_range)
         return similarities
 
 
@@ -193,17 +206,25 @@ class IFGSM(Attack):
             outputs = self.model(images)
 
             # Get cost for current preducted outputs and targeted labels or true labels
-            if self.targeted:
-                cost = -loss(outputs, targeted_labels)
-            else:
-                cost = loss(outputs, labels)
-
+            try:
+                if self.targeted:
+                    cost = -loss(outputs, targeted_labels)
+                else:
+                    cost = loss(outputs, labels)
+            except:
+                if self.targeted:
+                    cost = -loss(outputs.cuda(), targeted_labels.cuda())
+                else:
+                    cost = loss(outputs, labels)
             # Compute gradient, take sign and rescale to mean and std of data
             gradients = torch.autograd.grad(cost, images)[0]
             gradients_sign = self.rescale_gradients(gradients.sign())
 
             # Attack image and clamp it
-            attacked_images[samples_not_done,:,:,:] = images[samples_not_done,:,:,:] + (self.epsilon/self.steps)*gradients_sign[samples_not_done,:,:,:]
+            try:
+                attacked_images[samples_not_done,:,:,:] = images[samples_not_done,:,:,:] + (self.epsilon/self.steps)*gradients_sign[samples_not_done,:,:,:]
+            except:
+                attacked_images[samples_not_done,:,:,:] = images[samples_not_done,:,:,:].cpu() + (self.epsilon/self.steps)*gradients_sign[samples_not_done,:,:,:].cpu()
             attacked_images = attacked_images.detach()
             attacked_images = self.clamp(attacked_images)
             attacked_images_quantized = self.quantize(attacked_images.clone())
@@ -211,7 +232,10 @@ class IFGSM(Attack):
             # Save results of epsilon and number of steps
             epsilons[samples_not_done] += (self.epsilon/self.steps)
             steps[samples_not_done] += 1
-            gradients_sum[samples_not_done,:,:,:] = gradients_sum[samples_not_done,:,:,:] + gradients_sign[samples_not_done,:,:,:]
+            try:
+                gradients_sum[samples_not_done,:,:,:] = gradients_sum[samples_not_done,:,:,:] + gradients_sign[samples_not_done,:,:,:]
+            except:
+                gradients_sum[samples_not_done,:,:,:] = gradients_sum[samples_not_done,:,:,:].cpu() + gradients_sign[samples_not_done,:,:,:].cpu()
 
             # Compute similarity
             similarities = self.ssim(original_images, attacked_images_quantized)
@@ -228,7 +252,10 @@ class IFGSM(Attack):
                 samples_not_done = torch.where(similarities>self.threshold)[0]
             # See if attack succeded to misclassify the samples
             if self.until_attacked:
-                samples_not_done = torch.where(attacked_labels==true_labels)[0]
+                try:
+                    samples_not_done = torch.where(attacked_labels==true_labels)[0]
+                except:
+                    samples_not_done = torch.where(attacked_labels.cpu()==true_labels.cpu())[0]
             # Break of no samples left to attack
             if samples_not_done.shape[0] <= 0:
                 break
@@ -315,3 +342,119 @@ def save_images(images, attacked_images, gradients, labels, attacked_labels, tar
         file.write(csv_gradients[0:-1])
     print('Done.')
 
+def attack_experiment_ssim(rows, LOAD_PATH, IMAGE_ROOT, PARTITION_PATH_ROOT, album_compose, BATCH_SIZE, SHUFFLE,ATTACK_METHOD,  data_mean, data_std, 
+                      EPSILON, TARGETED, STEPS, MAX_BATCHES, THRESHOLD = None, UNTIL_ATTACKED = True, p_str = None, p_end = None):
+    # INPUTS:
+    # rows: number of rows to show attacked images
+    # LOAD_PATH: model path to be loaded
+    # IMAGE_ROOT, PARTITION_PATH_ROOT, album_compose : required for loading dataset from csv
+    # BATCH_SIZE, SHUFFLE: required for dataloader function.
+    # data_mean, data_std, EPSILON, TARGETED, STEPS : parameters for attack algorithms. STEPS is only used in I-FGSM
+    # MAX_BATCHES: maximum number of batches to be used as limit
+    # THRESHOLD: Set to None if no threshold
+    # UNTIL_ATTACKED:If to attack until misclassified
+    # p_str = The image position that starts plotting Default is None. If filled, plot_end must be filled too.
+    # p_end = The image position that ends plotting. Default is None. If filled, plot_start must be filled too.
+    
+    # Load trained model
+    model = torch.load(LOAD_PATH)
+
+    if torch.cuda.is_available():
+        model.cuda()
+
+    # Load test data to attack
+    dataset_attack = LoadDatasetFromCSV(image_root=IMAGE_ROOT,
+                                        csv_path=PARTITION_PATH_ROOT+'data_labels_test.csv',
+                                        transforms=album_compose)
+
+    # Load data into loaders
+    dataloader_attack = DataLoader(dataset=dataset_attack, batch_size=BATCH_SIZE, shuffle=SHUFFLE)
+
+    # Initialize and choose attacker
+    if ATTACK_METHOD == 'FGSM':
+        attack_method = FGSM(model=model, mean=data_mean, std=data_std,
+                                    epsilon=EPSILON, targeted=TARGETED)
+
+    elif ATTACK_METHOD == 'IFGSM':
+        attack_method = IFGSM(model= model, mean=data_mean, std=data_std,
+                                     epsilon=EPSILON, steps=STEPS, targeted=TARGETED,
+                                     threshold=THRESHOLD, until_attacked=UNTIL_ATTACKED)
+
+
+    # Intialize reults arrays
+    all_images = torch.Tensor()
+    all_labels = torch.Tensor().type(dtype=torch.uint8)
+    all_init_labels = torch.Tensor().type(dtype=torch.uint8)
+    all_attacked_images = torch.Tensor()
+    all_attacked_labels = torch.Tensor().type(dtype=torch.uint8)
+    all_gradients = torch.Tensor()
+    all_epsilons = torch.Tensor()
+    all_steps = torch.Tensor()
+
+    if TARGETED:
+        all_targeted_labels = torch.Tensor().type(dtype=torch.uint8)
+    else:
+        all_targeted_labels = None
+    all_similarities = torch.Tensor()
+
+
+    # Iterate over each batch
+    for batch, (images, labels) in enumerate(dataloader_attack):
+
+        images = images['image']
+        init_labels = model(images).max(1, keepdim=False)[1]
+
+        # Attack images
+        attacked_images, attacked_labels, gradients, targeted_labels, similarities, epsilons, steps = \
+        attack_method.attack(images, labels)
+
+
+
+        # Concatenate results for each batch
+        all_images = torch.cat((all_images.cuda(), images.cuda()), dim=0)
+        all_labels = torch.cat((all_labels.cuda(), labels.cuda()), dim=0)
+        all_init_labels = torch.cat((all_init_labels.cuda(), labels.cuda()), dim=0)
+        all_attacked_images = torch.cat((all_attacked_images.cuda(), attacked_images.cuda()), dim=0)
+        all_attacked_labels = torch.cat((all_attacked_labels.cuda(), attacked_labels.cuda()), dim=0)
+        all_gradients = torch.cat((all_gradients.cuda(), gradients.cuda()), dim=0)
+        all_epsilons = torch.cat((all_epsilons.cuda(), epsilons.cuda()), dim=0)
+        all_steps = torch.cat((all_steps.cuda(), steps.cuda()), dim=0)
+        if TARGETED:
+            all_targeted_labels = torch.cat((all_targeted_labels.cuda(), targeted_labels.cuda()), dim=0)
+        all_similarities = torch.cat((all_similarities, similarities), dim=0)
+
+        # Stop if above max amount of batches to test for
+        if MAX_BATCHES is None:
+            MAX_BATCHES = len(dataloader_attack)
+        if batch >= MAX_BATCHES - 1:
+            break
+    print('Experiment is done with epsilon = ' + str(EPSILON) + " and steps = " + str(STEPS))
+
+
+
+    # Evaluate attacks
+    num_samples = all_labels.shape[0]
+    Accuracy = np.around(np.count_nonzero(all_attacked_labels.cpu()==all_labels.cpu())*100/num_samples, 4)
+    Target_Accuracy = np.around(np.count_nonzero(all_attacked_labels.cpu()==all_targeted_labels.cpu())*100/num_samples, 4)
+    mean_similarity = torch.mean(all_similarities).item()
+    std_similarity = torch.std(all_similarities).item()
+    mean_steps = torch.mean(all_steps).item()
+    mean_epsilons = torch.mean(all_epsilons).item()
+    
+    #checks if a specific interval for plotting has been chosen. If it is, only plot these images in the interval.
+    if p_str != None and p_end != None:
+        plot_attacks(rows, all_images[p_str:p_end], all_labels[p_str:p_end], all_init_labels[p_str:p_end], 
+                     all_attacked_images[p_str:p_end], all_attacked_labels[p_str:p_end], all_gradients[p_str:p_end],
+            all_epsilons[p_str:p_end], all_steps[p_str:p_end], mean=data_mean, std=data_std, targeted_labels=all_targeted_labels[p_str:p_end])
+    #plot all images of amount defined as rows    
+    else:
+        plot_attacks(rows, all_images, all_labels, all_init_labels, all_attacked_images, all_attacked_labels, all_gradients,
+                 all_epsilons, all_steps, mean=data_mean, std=data_std, targeted_labels=all_targeted_labels)
+    plt.show()
+    #deletes all the objects to create memory on next run
+    del all_images,all_labels,all_init_labels,all_attacked_images, all_attacked_labels,all_gradients, \
+    all_epsilons,all_steps, all_targeted_labels, all_similarities
+    
+    gc.collect()
+    
+    return Accuracy, Target_Accuracy, mean_similarity, std_similarity, mean_steps, mean_epsilons
