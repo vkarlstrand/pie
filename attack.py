@@ -200,7 +200,7 @@ class IFGSM(Attack):
 
         # Set model to evaluate
         self.model.eval()
-        
+
         orig_label_tensor =  self.model(images)
         orig_label = orig_label_tensor.cpu().max(1, keepdim=False)[1]
 
@@ -216,7 +216,7 @@ class IFGSM(Attack):
         # print("original label is", orig_label)
         # print(" orig_label_tensor", orig_label_tensor)
         # print(int(orig_label_tensor.max(1, keepdim=False)[1][0]))
-              
+
         # Iterate for all steps
         for step in range(self.steps):
             # Predict label of current image
@@ -291,7 +291,7 @@ class IFGSM(Attack):
 
         # Return results
         return attacked_images_quantized, attacked_labels, gradients_sign, targeted_labels, similarities, epsilons, steps
-    
+
 def clip_tensor(A, minv, maxv):
     A = torch.max(A, minv*torch.ones(A.shape))
     A = torch.min(A, maxv*torch.ones(A.shape))
@@ -348,15 +348,15 @@ class DeepFool(Attack):
         if self.restrict_iter == False: self.max_iter = np.inf
         if self.restrict_ssim == False: min_ssim = 0
         # attack
-        
+
         # batch: int
         # labels: tensor([int])
         #image = images['image'] # image: tensor([[[...]]]) shape: 1, 3, 400, 400
         image = torch.squeeze(images) # squeeze to 3*400*400
-        
+
         images = images.clone().detach().to(self.device)
         original_images = images.clone().detach()
-        
+
         ori_arr.append(image)
         img_rt = out_transform(image) #a copy of unattacked image
         try:
@@ -407,12 +407,12 @@ class DeepFool(Attack):
             #pert_image_tmp.save('tmp.png')
             #pert_image_quantized = in_transform(im.open('tmp.png'))
             #NEW ONE
-            pert_image_quantized = in_transform(pert_image_tmp)            
-            
+            pert_image_quantized = in_transform(pert_image_tmp)
+
             #pert_image_quantized_rt = out_transform(pert_image_quantized)
             pert_image_quantized_rt = pert_image_tmp
             ssim_tmp = ssim(np.array(img_rt), np.array(pert_image_quantized_rt), data_range = np.array(img_rt).max() - np.array(img_rt).min(), multichannel=True)
-            if ssim_tmp > min_ssim: 
+            if ssim_tmp > min_ssim:
                 ssim_value = ssim_tmp
                 r_tot = np.float32(r_tot + r_i)
                 pert_image = image + (1+self.overshoot)*torch.from_numpy(r_tot)
@@ -424,7 +424,7 @@ class DeepFool(Attack):
                 except:
                     k_i = np.argmax(fs.cpu().data.numpy().flatten())
                 loop_i += 1
-            else: 
+            else:
                 #print(ssim_tmp)
                 r_tot = np.float32(r_tot + r_i * 0)
                 #pert_image = image + (1+overshoot)*torch.from_numpy(r_tot)
@@ -434,7 +434,7 @@ class DeepFool(Attack):
                 #CHANGE!
                 #pert_image_tmp.save('tmp.png')
                 #pert_image_quantized = in_transform(im.open('tmp.png'))
-                pert_image_quantized = in_transform(pert_image_tmp)                
+                pert_image_quantized = in_transform(pert_image_tmp)
                 #pert_image_quantized_rt = out_transform(pert_image_quantized)
                 pert_image_quantized_rt = pert_image_tmp
                 break
@@ -444,7 +444,7 @@ class DeepFool(Attack):
         attacked_arr.append(pert_image_quantized)#[0])
         r_rt = np.array(pert_image_quantized_rt) - np.array(img_rt)
         # return loop_i, label, k_i, pert_image_rt, img_rt, r_rt, ssim
-        # save outputs 
+        # save outputs
         label_arr.append(label)
         k_i_arr.append(k_i)
         similarities = self.ssim(original_images, pert_image_quantized)
@@ -488,8 +488,8 @@ class DeepFool(Attack):
         # print('std ssim: ', np.std(np.array(ssim_arr)))
         # print('avg loop num: ', np.mean(np.array(i_arr)))
         return pert_image_quantized, k_i, similarities
-        
-        
+
+
 
 
 
@@ -511,7 +511,7 @@ def evaluate_attacks(model, labels, attacked_images, attacked_labels, targeted_l
                      str(np.around(np.count_nonzero(attacked_labels==labels)*100/num_samples, 2))+str('%')))
     except:
         print(out.format('Accuracy:',
-                     str(np.around(np.count_nonzero(attacked_labels.cpu()==labels.cpu())*100/num_samples, 2))+str('%')))   
+                     str(np.around(np.count_nonzero(attacked_labels.cpu()==labels.cpu())*100/num_samples, 2))+str('%')))
     if targeted_labels is not None:
         print('')
         print(out.format('True labels:',
@@ -527,7 +527,7 @@ def evaluate_attacks(model, labels, attacked_images, attacked_labels, targeted_l
                              str(np.around(np.count_nonzero(attacked_labels==targeted_labels)*100/num_samples, 2))+str('%')))
         except:
             print(out.format('Target accuracy:',
-                             str(np.around(np.count_nonzero(attacked_labels.cpu()==targeted_labels.cpu())*100/num_samples, 2))+str('%')))    
+                             str(np.around(np.count_nonzero(attacked_labels.cpu()==targeted_labels.cpu())*100/num_samples, 2))+str('%')))
 
 
 
@@ -565,8 +565,8 @@ def save_images(images, attacked_images, gradients, labels, attacked_labels, tar
         file.write(csv_gradients[0:-1])
     print('Done.')
 
-def attack_experiment_ssim(rows, LOAD_PATH, IMAGE_ROOT, PARTITION_PATH_ROOT, album_compose, BATCH_SIZE, SHUFFLE,ATTACK_METHOD,  data_mean, data_std, 
-                      EPSILON, TARGETED, STEPS, MAX_BATCHES,COMPARE_ORIG, MAX_ITER = 10, THRESHOLD = None, UNTIL_ATTACKED = True, p_str = None, p_end = None, OVERSHOOT = 0.02, 
+def attack_experiment_ssim(rows, LOAD_PATH, IMAGE_ROOT, PARTITION_PATH_ROOT, album_compose, BATCH_SIZE, SHUFFLE,ATTACK_METHOD,  data_mean, data_std,
+                      EPSILON, TARGETED, STEPS, MAX_BATCHES,COMPARE_ORIG, MAX_ITER = 10, THRESHOLD = None, UNTIL_ATTACKED = True, p_str = None, p_end = None, OVERSHOOT = 0.02,
                       RESTRICT_ITER = False, RESTRICT_SSIM = True ):
     # INPUTS:
     # rows: number of rows to show attacked images
@@ -579,7 +579,7 @@ def attack_experiment_ssim(rows, LOAD_PATH, IMAGE_ROOT, PARTITION_PATH_ROOT, alb
     # UNTIL_ATTACKED:If to attack until misclassified
     # p_str = The image position that starts plotting Default is None. If filled, plot_end must be filled too.
     # p_end = The image position that ends plotting. Default is None. If filled, plot_start must be filled too.
-    
+
     # Load trained model
     model = torch.load(LOAD_PATH)
 
@@ -605,11 +605,11 @@ def attack_experiment_ssim(rows, LOAD_PATH, IMAGE_ROOT, PARTITION_PATH_ROOT, alb
                                      threshold=THRESHOLD, until_attacked=UNTIL_ATTACKED, compare_orig = COMPARE_ORIG)
     elif ATTACK_METHOD == "DeepFool":
         attack_method = DeepFool(model = model, mean = data_mean, std = data_std, max_iter = MAX_ITER,
-                                 overshoot = OVERSHOOT, restrict_iter = RESTRICT_ITER, 
+                                 overshoot = OVERSHOOT, restrict_iter = RESTRICT_ITER,
                                  restrict_ssim = RESTRICT_SSIM)
 
     if ATTACK_METHOD == 'FGSM' or ATTACK_METHOD == 'IFGSM':
-        
+
         # Intialize reults arrays
         all_images = torch.Tensor()
         all_labels = torch.Tensor().type(dtype=torch.uint8)
@@ -619,26 +619,26 @@ def attack_experiment_ssim(rows, LOAD_PATH, IMAGE_ROOT, PARTITION_PATH_ROOT, alb
         all_gradients = torch.Tensor()
         all_epsilons = torch.Tensor()
         all_steps = torch.Tensor()
-    
+
         if TARGETED:
             all_targeted_labels = torch.Tensor().type(dtype=torch.uint8)
         else:
             all_targeted_labels = None
         all_similarities = torch.Tensor()
-    
-        
+
+
         # Iterate over each batch
         for batch, (images, labels) in enumerate(dataloader_attack):
-    
+
             images = images['image']
             init_labels = model(images).max(1, keepdim=False)[1]
-    
+
             # Attack images
             attacked_images, attacked_labels, gradients, targeted_labels, similarities, epsilons, steps = \
             attack_method.attack(images, labels)
-    
-    
-    
+
+
+
             # Concatenate results for each batch
             all_images = torch.cat((all_images.cuda(), images.cuda()), dim=0)
             all_labels = torch.cat((all_labels.cuda(), labels.cuda()), dim=0)
@@ -651,16 +651,16 @@ def attack_experiment_ssim(rows, LOAD_PATH, IMAGE_ROOT, PARTITION_PATH_ROOT, alb
             if TARGETED:
                 all_targeted_labels = torch.cat((all_targeted_labels.cuda(), targeted_labels.cuda()), dim=0)
             all_similarities = torch.cat((all_similarities, similarities), dim=0)
-    
+
             # Stop if above max amount of batches to test for
             if MAX_BATCHES is None:
                 MAX_BATCHES = len(dataloader_attack)
             if batch >= MAX_BATCHES - 1:
                 break
         print('Experiment is done with epsilon = ' + str(EPSILON) + " and steps = " + str(STEPS))
-    
-    
-    
+
+
+
         # Evaluate attacks
         num_samples = all_labels.shape[0]
         Accuracy = np.around(np.count_nonzero(all_attacked_labels.cpu()==all_labels.cpu())*100/num_samples, 4)
@@ -669,13 +669,13 @@ def attack_experiment_ssim(rows, LOAD_PATH, IMAGE_ROOT, PARTITION_PATH_ROOT, alb
         std_similarity = torch.std(all_similarities).item()
         mean_steps = torch.mean(all_steps).item()
         mean_epsilons = torch.mean(all_epsilons).item()
-        
+
         #checks if a specific interval for plotting has been chosen. If it is, only plot these images in the interval.
         # if p_str != None and p_end != None:
-        #     plot_attacks(rows, all_images[p_str:p_end], all_labels[p_str:p_end], all_init_labels[p_str:p_end], 
+        #     plot_attacks(rows, all_images[p_str:p_end], all_labels[p_str:p_end], all_init_labels[p_str:p_end],
         #                  all_attacked_images[p_str:p_end], all_attacked_labels[p_str:p_end], all_gradients[p_str:p_end],
         #         all_epsilons[p_str:p_end], all_steps[p_str:p_end], mean=data_mean, std=data_std, targeted_labels=all_targeted_labels[p_str:p_end])
-        # #plot all images of amount defined as rows    
+        # #plot all images of amount defined as rows
         # else:
         #     plot_attacks(rows, all_images, all_labels, all_init_labels, all_attacked_images, all_attacked_labels, all_gradients,
         #              all_epsilons, all_steps, mean=data_mean, std=data_std, targeted_labels=all_targeted_labels)
@@ -683,9 +683,9 @@ def attack_experiment_ssim(rows, LOAD_PATH, IMAGE_ROOT, PARTITION_PATH_ROOT, alb
         #deletes all the objects to create memory on next run
         del all_images,all_labels,all_init_labels,all_attacked_images, all_attacked_labels,all_gradients, \
         all_epsilons,all_steps, all_targeted_labels, all_similarities
-        
+
         gc.collect()
-        
+
         return Accuracy, Target_Accuracy, mean_similarity, std_similarity, mean_steps, mean_epsilons
     elif ATTACK_METHOD == "DeepFool":
         # Intialize reults arrays
@@ -697,24 +697,24 @@ def attack_experiment_ssim(rows, LOAD_PATH, IMAGE_ROOT, PARTITION_PATH_ROOT, alb
         #all_gradients = torch.Tensor()
         #all_epsilons = torch.Tensor()
         #all_steps = torch.Tensor()
-    
+
         # if TARGETED:
         #     all_targeted_labels = torch.Tensor().type(dtype=torch.uint8)
         # else:
         #     all_targeted_labels = None
         all_similarities = torch.Tensor()
-    
-        
+
+
         # Iterate over each batch
         for batch, (images, labels) in enumerate(dataloader_attack):
-    
+
             images = images['image']
             init_labels = model(images).max(1, keepdim=False)[1]
-    
+
             # Attack images
             attacked_images, attacked_labels,similarities= attack_method.attack(images, labels)
-    
-    
+
+
             # Concatenate results for each batch
             all_images = torch.cat((all_images.cuda(), images.cuda()), dim=0)
             all_labels = torch.cat((all_labels.cuda(), labels.cuda()), dim=0)
@@ -727,16 +727,16 @@ def attack_experiment_ssim(rows, LOAD_PATH, IMAGE_ROOT, PARTITION_PATH_ROOT, alb
             # if TARGETED:
             #     all_targeted_labels = torch.cat((all_targeted_labels.cuda(), targeted_labels.cuda()), dim=0)
             all_similarities = torch.cat((all_similarities, similarities), dim=0)
-    
+
             # Stop if above max amount of batches to test for
             if MAX_BATCHES is None:
                 MAX_BATCHES = len(dataloader_attack)
             if batch >= MAX_BATCHES - 1:
                 break
         print('Experiment is done with Overshoot = ', str(OVERSHOOT) )
-    
-    
-    
+
+
+
         # Evaluate attacks
         num_samples = all_labels.shape[0]
         Accuracy = np.around(np.count_nonzero(all_attacked_labels.cpu()==all_labels.cpu())*100/num_samples, 4)
@@ -745,20 +745,20 @@ def attack_experiment_ssim(rows, LOAD_PATH, IMAGE_ROOT, PARTITION_PATH_ROOT, alb
         std_similarity = torch.std(all_similarities).item()
         # mean_steps = torch.mean(all_steps).item()
         # mean_epsilons = torch.mean(all_epsilons).item()
-        
+
         #checks if a specific interval for plotting has been chosen. If it is, only plot these images in the interval.
         # if p_str != None and p_end != None:
-        #     plot_attacks(rows, all_images[p_str:p_end], all_labels[p_str:p_end], all_init_labels[p_str:p_end], 
+        #     plot_attacks(rows, all_images[p_str:p_end], all_labels[p_str:p_end], all_init_labels[p_str:p_end],
         #                  all_attacked_images[p_str:p_end], all_attacked_labels[p_str:p_end], all_gradients[p_str:p_end],
         #         all_epsilons[p_str:p_end], all_steps[p_str:p_end], mean=data_mean, std=data_std, targeted_labels=all_targeted_labels[p_str:p_end])
-        # #plot all images of amount defined as rows    
+        # #plot all images of amount defined as rows
         # else:
         #     plot_attacks(rows, all_images, all_labels, all_init_labels, all_attacked_images, all_attacked_labels, all_gradients,
         #              all_epsilons, all_steps, mean=data_mean, std=data_std, targeted_labels=all_targeted_labels)
         # plt.show()
         #deletes all the objects to create memory on next run
         del all_images,all_labels,all_init_labels,all_attacked_images, all_attacked_labels, all_similarities
-        
+
         gc.collect()
-        
+
         return Accuracy,mean_similarity, std_similarity
